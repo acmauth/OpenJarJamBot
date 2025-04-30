@@ -45,6 +45,6 @@ Saves and manages information based on two tables:
 	* If blank and user isn't part of a team it prints "You are not in a team"
 	* If a team name is given but it doesn't exist it prints "Team does not exist"
 
-/list 
+* /list 
 	* Print teams
 
