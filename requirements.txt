@@ -1,2 +1,4 @@
 py-cord
 python-dotenv
+aiosqlite
+nest_asyncio
