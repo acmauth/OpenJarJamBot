@@ -1,5 +1,8 @@
 import asyncio, sys
 
+# Colour assigned to embeds sent by the bot
+embed_colour = 0xd03df5
+
 # Async console printing
 async def aprint(string: str) -> None:
     await asyncio.to_thread(sys.stdout.write, f'{string}\n')
