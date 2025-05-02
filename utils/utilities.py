@@ -4,8 +4,8 @@ import asyncio, sys
 embed_colour = 0xd03df5
 
 # Async console printing
-async def aprint(string: str) -> None:
-    await asyncio.to_thread(sys.stdout.write, f'{string}\n')
+async def aprint(output) -> None:
+    await asyncio.to_thread(sys.stdout.write, f'{output}\n')
 
 # Async parallel execution of Future objects
 async def parallel_execute(coro_future_gens: list) -> None:

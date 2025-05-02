@@ -24,8 +24,7 @@ for filename in os.listdir("./modules"):
 @bot.event
 async def on_ready() -> None:
     await aprint("I'm online! Checking the database...")
-    asyncio.run(DatabaseHandler.check_tables())
-    await bot.sync_commands(force=True)
+    await DatabaseHandler.check_tables()
 
 @bot.command()
 @commands.has_permissions(manage_guild=True)
