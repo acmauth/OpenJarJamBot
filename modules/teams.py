@@ -3,6 +3,8 @@ from discord import ApplicationContext as Context
 from discord.ext import commands
 
 from utils.database_handler import DatabaseHandler as dh
+from utils.utilities import aprint, embed_colour
+
 
 class TeamsCog(discord.Cog):
     def __init__(self, bot):
@@ -19,11 +21,11 @@ class TeamsCog(discord.Cog):
         if not await dh.is_user_on_any_team(user_id):
             if await dh.team_exists(team_name):
                 result = await dh.create_team_request(team_name, user_id)
-                if result == -1: await ctx.respond('Η ομάδα που ανέφερες έχει συμπληρώσει τον μέγιστο αριθμό επιτρεπτών μελών!',
+                if result == -1: await ctx.interaction.respond('Η ομάδα που ανέφερες έχει συμπληρώσει τον μέγιστο αριθμό επιτρεπτών μελών!',
                                                    ephemeral=True)
-                elif result == 0: await ctx.respond(f'Έχεις ήδη αιτηθεί την ένταξή σου στην ομάδα {team_name}',
+                elif result == 0: await ctx.interaction.respond(f'Έχεις ήδη αιτηθεί την ένταξή σου στην ομάδα {team_name}',
                                                     ephemeral=True)
-                else: await ctx.respond(f'Η αίτηση ένταξης προς την ομάδα {team_name} στάλθηκε!',
+                else: await ctx.interaction.respond(f'Η αίτηση ένταξης προς την ομάδα {team_name} στάλθηκε!',
                                         ephemeral=True)
             else:
                 try:
@@ -40,32 +42,81 @@ class TeamsCog(discord.Cog):
 
                     # create the channel
                     txt_channel = await ctx.guild.create_text_channel(reason=f'Channel creation for team {team_name}',
-                                                        name=f'team-{team_name}',
-                                                        category=discord.utils.get(ctx.guild.categories, name='Teams'),
-                                                        overwrites={
-                                                            discord.utils.get(ctx.guild.roles, name=team_name) : discord.PermissionOverwrite(
-                                                                view_channel = True
-                                                            ),
-                                                            discord.utils.get(ctx.guild.roles, name='Moderator') : discord.PermissionOverwrite(
-                                                                view_channel = True
-                                                            ),
-                                                            discord.utils.get(ctx.guild.roles, name='@everyone') : discord.PermissionOverwrite(
-                                                                view_channel = False
-                                                            )
-                                                        })
+                                                                      name=f'team-{team_name}',
+                                                                      category=discord.utils.get(ctx.guild.categories, name='Teams Chats'),
+                                                                      overwrites={
+                                                                          discord.utils.get(ctx.guild.roles, name=team_name) : discord.PermissionOverwrite(
+                                                                              view_channel = True
+                                                                          ),
+                                                                          discord.utils.get(ctx.guild.roles, name='Moderator') : discord.PermissionOverwrite(
+                                                                              view_channel = True
+                                                                          ),
+                                                                          discord.utils.get(ctx.guild.roles, name='@everyone') : discord.PermissionOverwrite(
+                                                                              view_channel = False
+                                                                          )
+                                                                      })
+
+                    vc_channel = await ctx.guild.create_voice_channel(reason=f'Channel creation for team {team_name}',
+                                                                      name=f'Team {team_name}',
+                                                                      category=discord.utils.get(ctx.guild.categories, name='Teams Voice Chats'),
+                                                                      user_limit=4,
+                                                                      overwrites={
+                                                                          discord.utils.get(ctx.guild.roles,
+                                                                                            name=team_name): discord.PermissionOverwrite(
+                                                                              view_channel=True
+                                                                          ),
+                                                                          discord.utils.get(ctx.guild.roles,
+                                                                                            name='Moderator'): discord.PermissionOverwrite(
+                                                                              view_channel=True
+                                                                          ),
+                                                                          discord.utils.get(ctx.guild.roles,
+                                                                                            name='@everyone'): discord.PermissionOverwrite(
+                                                                              view_channel=False
+                                                                          )
+                                                                      })
 
                     # send the final response
-                    await ctx.respond(f'Η ομάδα {team_name} δημιουργήθηκε επιτυχώς! Επιπλέον, πήρες τον ειδικό ρόλο, όπως και '
-                                      f'δημιουργήθηκε το κανάλι {txt_channel.mention} αποκλειστικά για τα μέλη της ομάδας σου!')
+                    await ctx.interaction.respond(f'Η ομάδα {team_name} δημιουργήθηκε επιτυχώς! Επιπλέον, πήρες τον ειδικό ρόλο, όπως και '
+                                      f'δημιουργήθηκαν τα κανάλια {txt_channel.mention} και {vc_channel.mention} αποκλειστικά για τα μέλη της ομάδας σου!')
                 except:
-                    await ctx.respond(f'**__Σφάλμα__**: Ανεπιτυχής δημιουργία της ομάδας `{team_name}`. Παρακαλώ επικοινώνησε με κάποιο μέλος προσωπικού.')
+                    await ctx.interaction.respond(f'**__Σφάλμα__**: Ανεπιτυχής δημιουργία της ομάδας `{team_name}`. Παρακαλώ επικοινώνησε με κάποιο μέλος προσωπικού.')
         else:
-            await ctx.respond('Ανήκεις ήδη σε ομάδα! Αν επιθυμείς να ενταχθείς σε κάποια άλλη, χρησιμοποίησε την εντολή `/leave` '
+            await ctx.interaction.respond('Ανήκεις ήδη σε ομάδα! Αν επιθυμείς να ενταχθείς σε κάποια άλλη, χρησιμοποίησε την εντολή `/leave` '
                               'για να αποχωρήσεις από την ομάδα σου και έπειτα προσπάθησε ξανά!', ephemeral=True)
 
     @commands.slash_command(description='Η εντολή επιστρέφει τα αιτήματα ένταξης χρηστών προς την ομάδα σου!')
     async def requests(self, ctx: Context) -> None:
-        pass
+        user_id = ctx.author.id
+        team: str = ctx.author.roles[1].name
+        await aprint(team)
+
+        if await dh.is_user_on_any_team(user_id):
+            requests_list = await dh.get_team_total_requests(team)
+            if len(requests_list) == 0: await ctx.interaction.respond('Δεν υπάρχουν διαθέσιμα αιτήματα προς έλεγχο.')
+            else:
+                embed = discord.Embed(
+                    colour=embed_colour,
+                    title=f'Αιτήματα ομάδας {team}',
+                    description=f'Υπάρχουν **{len(requests_list)}** αιτήματα προς έλεγχο.',
+                )
+                user_list = list()
+
+                for user_id in requests_list:
+                    user = discord.utils.get(ctx.guild.members, id=user_id)
+                    if user is None: continue
+                    user_list.append(user.mention)
+
+                final_applicants_string = ', '.join(user_list)
+
+                embed.add_field(
+                    name='Αιτούμενοι χρήστες',
+                    value=final_applicants_string,
+                    inline=False
+                )
+
+                await ctx.interaction.respond(embed=embed)
+        else:
+            await ctx.interaction.respond('Δεν ανήκεις σε κάποια ομάδα!')
 
     @commands.slash_command(description='Η εντολή αποδέχεται το αίτημα ένταξης του χρήστη της παραμέτρου προς την ομάδα σου!')
     @discord.option(name='user',
@@ -98,8 +149,42 @@ class TeamsCog(discord.Cog):
                     input_type=str,
                     required=False,
                     default='')
-    async def members(self, ctx: Context, team_name: str) -> None:
-        pass
+    async def members(self, ctx: Context, team_name: str = '') -> None:
+        team: str = ctx.author.roles[1].name if len(team_name) == 0 else team_name
+        await aprint(team)
+        if await dh.is_user_on_any_team(ctx.author.id):
+            if await dh.team_exists(team):
+                member_list = await dh.get_team_overall_members(team)
+                embed = discord.Embed(colour=embed_colour,
+                                      title=f'Team {team}',
+                                      description=f'Η ομάδα **{team}** αποτελείται από **{len(member_list)}** μέλη, τα οποία παρουσιάζονται παρακάτω:')
+
+                leader_string = ''
+                member_mentions_list = list()
+
+                for member in member_list:
+                    user = discord.utils.get(ctx.guild.members, id=member)
+                    if user is None: continue
+                    if member == member_list[0]: leader_string = user.mention
+                    else: member_mentions_list.append(user.mention)
+
+                embed.add_field(
+                    name='Leader',
+                    value=leader_string,
+                    inline=False
+                )
+
+                if len(member_mentions_list) > 0:
+                    embed.add_field(
+                        name='Member(s)',
+                        value=', '.join(member_mentions_list),
+                        inline=False
+                    )
+
+                await ctx.interaction.respond(embed=embed)
+            else:
+                await ctx.interaction.respond('Η ομάδα που ανέφερες δεν υπάρχει!')
+        else: await ctx.interaction.respond('Δεν ανήκεις σε κάποια ομάδα!')
 
     @commands.slash_command(description='Η εντολή εκτυπώνει όλες τις υπάρχουσες ομάδες!')
     async def list(self, ctx: Context) -> None:

@@ -39,6 +39,23 @@ class DatabaseHandler:
                     await db.commit()
 
     @staticmethod
+    async def get_team_overall_members(team: str) -> list:
+        infoGatheringQuery = f'select Leader, Members from Teams where Name="{team}";'
+        members = list()
+
+        async with aiosqlite.connect(database_path) as db:
+            async with db.execute(infoGatheringQuery) as cursor:
+                row = await cursor.fetchone()
+
+                members.append(row[0]) # the leader is always there...
+
+                if row[1] is not None:
+                    member_list = row[1].split(",")
+                    members.extend(member_list)
+
+        return members
+
+    @staticmethod
     async def is_user_on_any_team(user_id: int) -> bool:
         checkQuery = f'select Leader, Members from Teams;'
         result: bool = False
@@ -73,6 +90,16 @@ class DatabaseHandler:
     async def count_team_members(team: str) -> int:
         teamMembersQuery = f'select Members from Teams where Name="{team}";'
 
+        async with aiosqlite.connect(database_path) as db:
+            async with db.execute(teamMembersQuery) as cursor:
+                row = await cursor.fetchone()
+
+                if row is None: return 0
+                elif row[0] is None: return 1 #no members, only the leader
+                else:
+                    member_list = row[0].split(",")
+                    return len(member_list) + 1 #members + the leader
+
         return 0 #for now...
 
     @staticmethod
@@ -86,7 +113,7 @@ class DatabaseHandler:
 
             if members is not None:
                 member_list = members.split(",")
-                if len(member_list) >= 3: return 0 # Team is full
+                if len(member_list) >= 4: return 0 # Team is full
                 else:
                     member_list.append(str(user_id))
 
@@ -109,7 +136,7 @@ class DatabaseHandler:
 
         async with aiosqlite.connect(database_path) as db:
             async with db.execute(requestExistsQuery) as cursor:
-                rows = cursor.fetchone()
+                rows = await cursor.fetchone()
 
                 if rows is None:
                     await db.execute(requestCreationQuery)
@@ -118,10 +145,26 @@ class DatabaseHandler:
                     team_list = []
                     for row in rows: team_list.append(row[0])
                     if not team in team_list:
-                        if await DatabaseHandler.count_team_members(team) >= 3: return -1 #team is full
+                        if await DatabaseHandler.count_team_members(team) >= 4: return -1 #team is full
                         else:
                             await db.execute(requestCreationQuery)
                             await db.commit()
                     else: return 0 #request already exists
 
         return 1 #all ended well...
+
+    @staticmethod
+    async def get_team_total_requests(team: str) -> list:
+        infoGatheringQuery = f'select UserId from Requests where Team="{team}";'
+        requests = list()
+
+        async with aiosqlite.connect(database_path) as db:
+            async with db.execute(infoGatheringQuery) as cursor:
+                rows = await cursor.fetchall()
+                await aprint(rows)
+
+                for row in rows:
+                    if row is None: break
+                    if row[0] is not None: requests.append(row[0])
+
+        return requests
