@@ -81,8 +81,9 @@ class TeamsCog(discord.Cog):
                 except:
                     await ctx.interaction.respond(f'**__Σφάλμα__**: Ανεπιτυχής δημιουργία της ομάδας `{team_name}`. Παρακαλώ επικοινώνησε με κάποιο μέλος προσωπικού.')
         else:
-            await ctx.interaction.respond('Ανήκεις ήδη σε ομάδα! Αν επιθυμείς να ενταχθείς σε κάποια άλλη, χρησιμοποίησε την εντολή `/leave` '
-                              'για να αποχωρήσεις από την ομάδα σου και έπειτα προσπάθησε ξανά!', ephemeral=True)
+            leave_cmd = discord.utils.get(self.bot.application_commands, name='leave')
+            await ctx.interaction.respond(f'Ανήκεις ήδη σε ομάδα! Αν επιθυμείς να ενταχθείς σε κάποια άλλη, χρησιμοποίησε την εντολή </leave:{leave_cmd.id}> '
+                              'για να αποχωρήσεις από την ομάδα σου και έπειτα προσπάθησε ξανά!', ephemeral=False)
 
     @commands.slash_command(description='Η εντολή επιστρέφει τα αιτήματα ένταξης χρηστών προς την ομάδα σου!')
     async def requests(self, ctx: Context) -> None:
@@ -94,10 +95,11 @@ class TeamsCog(discord.Cog):
             requests_list = await dh.get_team_total_requests(team)
             if len(requests_list) == 0: await ctx.interaction.respond('Δεν υπάρχουν διαθέσιμα αιτήματα προς έλεγχο.')
             else:
+                correct_description = f'Υπάρχουν {len(requests_list)} αιτήματα' if len(requests_list) > 1 else 'Υπάρχει 1 αίτημα'
                 embed = discord.Embed(
                     colour=embed_colour,
                     title=f'Αιτήματα ομάδας {team}',
-                    description=f'Υπάρχουν **{len(requests_list)}** αιτήματα προς έλεγχο.',
+                    description=f'{correct_description} προς έλεγχο.',
                 )
                 user_list = list()
 
@@ -155,9 +157,10 @@ class TeamsCog(discord.Cog):
         if await dh.is_user_on_any_team(ctx.author.id):
             if await dh.team_exists(team):
                 member_list = await dh.get_team_overall_members(team)
+                corrent_member_form = 'μέλη, τα οποία παρουσιάζονται' if len(member_list) > 1 else 'μέλος, το οποίο παρουσιάζεται'
                 embed = discord.Embed(colour=embed_colour,
                                       title=f'Team {team}',
-                                      description=f'Η ομάδα **{team}** αποτελείται από **{len(member_list)}** μέλη, τα οποία παρουσιάζονται παρακάτω:')
+                                      description=f'Η ομάδα **{team}** αποτελείται από **{len(member_list)}** {corrent_member_form} παρακάτω:')
 
                 leader_string = ''
                 member_mentions_list = list()
