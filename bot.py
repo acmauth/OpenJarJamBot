@@ -23,18 +23,6 @@ async def on_ready() -> None:
     await aprint("I'm online! Checking the database...")
     await DatabaseHandler.check_tables()
 
-@bot.command()
-@commands.has_permissions(manage_guild=True)
-async def force_cmd_sync(ctx: commands.Context) -> None:
-    await bot.sync_commands(guild_ids=[1366835026741952633])
-    await ctx.reply("Forced app commands sync")
-
-@bot.command()
-@commands.has_permissions(manage_guild=True)
-async def force_cmd_unregister(ctx: commands.Context) -> None:
-    await bot.sync_commands(commands=[], guild_ids=[1366835026741952633])
-    await ctx.reply("Forced app commands sync")
-
 if __name__ == "__main__":
     dotenv.load_dotenv() # load .env
     token = os.getenv("DISCORD_BOT_TOKEN") # get the token

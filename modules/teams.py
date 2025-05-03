@@ -32,12 +32,12 @@ class TeamsCog(discord.Cog):
                     await dh.create_team(team_name, user_id) # create the team
 
                     # create and assign the role
-                    await ctx.guild.create_role(reason=f'Role creation for team {team_name}',
+                    role = await ctx.guild.create_role(reason=f'Role creation for team {team_name}',
                                                 name=team_name,
                                                 colour=discord.Colour.random(),
                                                 permissions=discord.utils.get(ctx.guild.roles, name="@everyone").permissions,
                                                 mentionable=False)
-                    await ctx.author.add_roles(discord.utils.get(ctx.guild.roles, name=team_name),
+                    await ctx.author.add_roles(role,
                                                reason=f'Adding appropriate role to user of team {team_name}')
 
                     # create the channel
@@ -53,6 +53,9 @@ class TeamsCog(discord.Cog):
                                                                           ),
                                                                           discord.utils.get(ctx.guild.roles, name='@everyone') : discord.PermissionOverwrite(
                                                                               view_channel = False
+                                                                          ),
+                                                                          discord.utils.get(ctx.guild.roles, name='OpenJarJamBot') : discord.PermissionOverwrite(
+                                                                              view_channel = True, manage_channels = True
                                                                           )
                                                                       })
 
@@ -72,11 +75,15 @@ class TeamsCog(discord.Cog):
                                                                           discord.utils.get(ctx.guild.roles,
                                                                                             name='@everyone'): discord.PermissionOverwrite(
                                                                               view_channel=False
+                                                                          ),
+                                                                          discord.utils.get(ctx.guild.roles,
+                                                                                            name='OpenJarJamBot'): discord.PermissionOverwrite(
+                                                                              view_channel=True, manage_channels=True
                                                                           )
                                                                       })
 
                     # send the final response
-                    await ctx.interaction.respond(f'Η ομάδα {team_name} δημιουργήθηκε επιτυχώς! Επιπλέον, πήρες τον ειδικό ρόλο, όπως και '
+                    await ctx.interaction.respond(f'Η ομάδα {team_name} δημιουργήθηκε επιτυχώς! Επιπλέον, πήρες τον ειδικό ρόλο {role.mention}, όπως και '
                                       f'δημιουργήθηκαν τα κανάλια {txt_channel.mention} και {vc_channel.mention} αποκλειστικά για τα μέλη της ομάδας σου!')
                 except:
                     await ctx.interaction.respond(f'**__Σφάλμα__**: Ανεπιτυχής δημιουργία της ομάδας `{team_name}`. Παρακαλώ επικοινώνησε με κάποιο μέλος προσωπικού.')
@@ -88,8 +95,7 @@ class TeamsCog(discord.Cog):
     @commands.slash_command(description='Η εντολή επιστρέφει τα αιτήματα ένταξης χρηστών προς την ομάδα σου!')
     async def requests(self, ctx: Context) -> None:
         user_id = ctx.author.id
-        team: str = ctx.author.roles[1].name
-        await aprint(team)
+        team: str = await dh.get_team_by_member(user_id)
 
         if await dh.is_user_on_any_team(user_id):
             requests_list = await dh.get_team_total_requests(team)
@@ -143,7 +149,21 @@ class TeamsCog(discord.Cog):
 
     @commands.slash_command(description='Η εντολή σε αφαιρεί από την ομάδα σου!')
     async def leave(self, ctx: Context) -> None:
-        pass
+        user_id = ctx.author.id
+        team = await dh.get_team_by_member(user_id)
+
+        if await dh.is_user_on_any_team(user_id):
+            if len(await dh.get_team_total_members(team)) > 1: pass
+            else: # delete the team
+                final_team = team.replace(' ', '-').lower()
+                await discord.utils.get(ctx.guild.text_channels, name=f'team-{final_team}').delete(reason=f'Deleting team {team}')
+                await discord.utils.get(ctx.guild.voice_channels, name=f'Team {team}').delete(reason=f'Deleting team {team}')
+                await discord.utils.get(ctx.guild.roles, name=team).delete(reason=f'Deleting team {team}')
+
+                await dh.delete_team(team)
+
+                await ctx.interaction.respond(f'Μόλις έφυγες από την ομάδα `{team}`. Επειδή ήσουν το μόνο μέλος της η ομάδα διαγράφτηκε.')
+        else: await ctx.interaction.respond('Δεν ανήκεις σε κάποια ομάδα!')
 
     @commands.slash_command(description='Η εντολή εκτυπώνει τα μέλη μιας ομάδας!')
     @discord.option(name='team_name',
@@ -152,7 +172,7 @@ class TeamsCog(discord.Cog):
                     required=False,
                     default='')
     async def members(self, ctx: Context, team_name: str = '') -> None:
-        team: str = ctx.author.roles[1].name if len(team_name) == 0 else team_name
+        team: str = await dh.get_team_by_member(ctx.author.id) if len(team_name) == 0 else team_name
         await aprint(team)
         if await dh.is_user_on_any_team(ctx.author.id):
             if await dh.team_exists(team):
@@ -203,8 +223,8 @@ class TeamsCog(discord.Cog):
             leader = discord.utils.get(ctx.guild.members, id=members[0])
 
             embed.add_field(
-                name=f'Team {team}',
-                value=f'Αρχηγός: {leader.mention} | Πλήθος μελών: {len(members)}',
+                name=f'Team `{team}`',
+                value=f'> Αρχηγός: {leader.mention} | Πλήθος μελών: {len(members)}',
                 inline=False
             )
 

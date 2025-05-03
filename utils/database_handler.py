@@ -39,6 +39,20 @@ class DatabaseHandler:
                     await db.commit()
 
     @staticmethod
+    async def transfer_team_leadership(team: str, to_user: int) -> None:
+        pass
+
+    @staticmethod
+    async def delete_team(team: str) -> None:
+        deleteTeamQuery = f'delete from Teams where Name="{team}";'
+        deleteRemainingRequestsQuery = f'delete from Requests where Team="{team}";'
+
+        async with aiosqlite.connect(database_path) as db:
+            await db.execute(deleteTeamQuery)
+            await db.execute(deleteRemainingRequestsQuery)
+            await db.commit()
+
+    @staticmethod
     async def get_all_teams() -> dict:
         infoGatheringQuery = 'select Name from Teams;'
         result = dict()
@@ -52,7 +66,6 @@ class DatabaseHandler:
                     total_members = await DatabaseHandler.get_team_total_members(team)
                     result[team] = total_members
 
-        await aprint(result)
         return result
 
     @staticmethod
@@ -68,7 +81,9 @@ class DatabaseHandler:
 
                 if row[1] is not None:
                     member_list = row[1].split(",")
-                    members.extend(member_list)
+                    fixed_list = list()
+                    for member in member_list: fixed_list.append(int(member))
+                    members.extend(fixed_list)
 
         return members
 
@@ -88,6 +103,18 @@ class DatabaseHandler:
 
                     if user_id != leader and not str(user_id) in member_list: continue
                     else: result = True; break
+
+        return result
+
+    @staticmethod
+    async def get_team_by_member(user_id: int) -> str:
+        teams = await DatabaseHandler.get_all_teams()
+        result = ''
+
+        for team, members in teams.items():
+            if user_id in members:
+                result = team
+                break
 
         return result
 
@@ -185,3 +212,7 @@ class DatabaseHandler:
                     if row[0] is not None: requests.append(row[0])
 
         return requests
+
+    @staticmethod
+    async def request_exists(team: str, user_id: int) -> bool:
+        pass
