@@ -156,7 +156,7 @@ class TeamsCog(discord.Cog):
         await aprint(team)
         if await dh.is_user_on_any_team(ctx.author.id):
             if await dh.team_exists(team):
-                member_list = await dh.get_team_overall_members(team)
+                member_list = await dh.get_team_total_members(team)
                 corrent_member_form = 'μέλη, τα οποία παρουσιάζονται' if len(member_list) > 1 else 'μέλος, το οποίο παρουσιάζεται'
                 embed = discord.Embed(colour=embed_colour,
                                       title=f'Team {team}',
@@ -172,14 +172,14 @@ class TeamsCog(discord.Cog):
                     else: member_mentions_list.append(user.mention)
 
                 embed.add_field(
-                    name='Leader',
+                    name='Αρχηγός',
                     value=leader_string,
                     inline=False
                 )
 
                 if len(member_mentions_list) > 0:
                     embed.add_field(
-                        name='Member(s)',
+                        name='Μέλη',
                         value=', '.join(member_mentions_list),
                         inline=False
                     )
@@ -191,7 +191,24 @@ class TeamsCog(discord.Cog):
 
     @commands.slash_command(description='Η εντολή εκτυπώνει όλες τις υπάρχουσες ομάδες!')
     async def list(self, ctx: Context) -> None:
-        pass
+        teams = await dh.get_all_teams()
+        correct_description = f'Υπάρχουν {len(teams.keys())} ομάδες' if len(teams.keys()) != 1 else 'Υπάρχει 1 ομάδα'
+        embed = discord.Embed(
+            colour=embed_colour,
+            title='Υπάρχουσες ομάδες',
+            description=f'{correct_description} συνολικά.'
+        )
+
+        for team, members in teams.items():
+            leader = discord.utils.get(ctx.guild.members, id=members[0])
+
+            embed.add_field(
+                name=f'Team {team}',
+                value=f'Αρχηγός: {leader.mention} | Πλήθος μελών: {len(members)}',
+                inline=False
+            )
+
+        await ctx.interaction.respond(embed=embed)
 
 def setup(bot: commands.Bot):
     bot.add_cog(TeamsCog(bot))

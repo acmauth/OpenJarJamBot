@@ -39,7 +39,24 @@ class DatabaseHandler:
                     await db.commit()
 
     @staticmethod
-    async def get_team_overall_members(team: str) -> list:
+    async def get_all_teams() -> dict:
+        infoGatheringQuery = 'select Name from Teams;'
+        result = dict()
+
+        async with aiosqlite.connect(database_path) as db:
+            async with db.execute(infoGatheringQuery) as cursor:
+                rows = await cursor.fetchall()
+
+                for row in rows:
+                    team: str = row[0]
+                    total_members = await DatabaseHandler.get_team_total_members(team)
+                    result[team] = total_members
+
+        await aprint(result)
+        return result
+
+    @staticmethod
+    async def get_team_total_members(team: str) -> list:
         infoGatheringQuery = f'select Leader, Members from Teams where Name="{team}";'
         members = list()
 
