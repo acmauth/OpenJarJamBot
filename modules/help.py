@@ -9,7 +9,7 @@ class HelpCommandCog(discord.Cog):
         self.bot: commands.Bot = bot
 
     @commands.slash_command(description="Η εντολή σε πλοηγεί στις διάφορες λειτουργίες που προσφέρει το bot!")
-    #@commands.has_role("Moderator")
+    @commands.has_permissions(manage_guild = True)
     @discord.option(
         name='channel',
         input_type=discord.TextChannel
@@ -88,6 +88,7 @@ class HelpCommandCog(discord.Cog):
         )
 
         await channel.send(embed=embed)
+        await ctx.interaction.respond(f'Sent the embedded guide to channel {channel.mention}')
 
 def setup(bot: commands.Bot):
     bot.add_cog(HelpCommandCog(bot))
