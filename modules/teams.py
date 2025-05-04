@@ -95,9 +95,9 @@ class TeamsCog(discord.Cog):
     @commands.slash_command(description='Η εντολή επιστρέφει τα αιτήματα ένταξης χρηστών προς την ομάδα σου!')
     async def requests(self, ctx: Context) -> None:
         user_id = ctx.author.id
-        team: str = await dh.get_team_by_member(user_id)
 
         if await dh.is_user_on_any_team(user_id):
+            team: str = await dh.get_team_by_member(user_id)
             requests_list = await dh.get_team_total_requests(team)
             if len(requests_list) == 0: await ctx.interaction.respond('Δεν υπάρχουν διαθέσιμα αιτήματα προς έλεγχο.')
             else:
@@ -133,10 +133,10 @@ class TeamsCog(discord.Cog):
     async def accept(self, ctx: Context, user: discord.Member) -> None:
         applicant_id = user.id
         author_id = ctx.author.id
-        team = await dh.get_team_by_member(author_id)
-        member_list = await dh.get_team_total_members(team)
 
         if await dh.is_user_on_any_team(author_id):
+            team = await dh.get_team_by_member(author_id)
+            member_list = await dh.get_team_total_members(team)
             if author_id == member_list[0]: #if the user is the leader
                 if await dh.request_exists(team, applicant_id):
                     if not await dh.is_user_on_any_team(applicant_id):
@@ -162,10 +162,10 @@ class TeamsCog(discord.Cog):
     async def dismiss(self, ctx: Context, user: discord.Member) -> None:
         applicant_id = user.id
         author_id = ctx.author.id
-        team = await dh.get_team_by_member(author_id)
-        members = await dh.get_team_total_members(team)
 
         if await dh.is_user_on_any_team(author_id):
+            team = await dh.get_team_by_member(author_id)
+            members = await dh.get_team_total_members(team)
             if author_id == members[0]:
                 if await dh.request_exists(team, applicant_id):
                     await dh.dismiss_team_request(team, applicant_id)
@@ -181,11 +181,11 @@ class TeamsCog(discord.Cog):
     async def kick(self, ctx: Context, user: discord.Member) -> None:
         member_id = user.id
         author_id = ctx.author.id
-        team = await dh.get_team_by_member(author_id)
-        members = await dh.get_team_total_members(team)
         leave_cmd = discord.utils.get(self.bot.application_commands, name='leave')
 
         if await dh.is_user_on_any_team(author_id):
+            team = await dh.get_team_by_member(author_id)
+            members = await dh.get_team_total_members(team)
             if author_id == members[0]:
                 if member_id != author_id:
                     if member_id in members:
