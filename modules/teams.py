@@ -131,21 +131,72 @@ class TeamsCog(discord.Cog):
                     description='Ο αιτούμενος χρήστης',
                     input_type=discord.Member)
     async def accept(self, ctx: Context, user: discord.Member) -> None:
-        pass
+        applicant_id = user.id
+        author_id = ctx.author.id
+        team = await dh.get_team_by_member(author_id)
+        member_list = await dh.get_team_total_members(team)
+
+        if await dh.is_user_on_any_team(author_id):
+            if author_id == member_list[0]: #if the user is the leader
+                if await dh.request_exists(team, applicant_id):
+                    if not await dh.is_user_on_any_team(applicant_id):
+                        if not len(member_list) >= 4:
+                            await dh.add_user_to_team(team, applicant_id)
+                            await user.add_roles(discord.utils.get(ctx.guild.roles, name=team), reason=f'Assigning role to member of team {team}')
+
+                            await dh.dismiss_team_request(team, applicant_id)
+
+                            await ctx.interaction.respond(f'Αποδέχτηκες το αίτημα του αιτούμενου χρήστη. Καλωσόρισες {user.mention}!')
+                        else: await ctx.interaction.respond('Η ομάδα σου είναι γεμάτη. (4/4 μέλη συνολικά)')
+                    else:
+                        await dh.dismiss_team_request(team, applicant_id)
+                        await ctx.interaction.respond(f'Ο χρήστης {user.mention} ανήκει ήδη σε ομάδα. Το αίτημα του διαγράφτηκε αυτόματα.')
+                else: await ctx.interaction.respond('Δεν υπάρχει αίτημα ένταξης προς την ομάδα σου από αυτόν τον χρήστη.')
+            else: await ctx.interaction.respond('Μόνο ο αρχηγός της ομάδας σου μπορεί να αποδεχτεί αιτήματα.')
+        else: await ctx.interaction.respond('Δεν ανήκεις σε κάποια ομάδα!')
 
     @commands.slash_command(description='Η εντολή απορρίπτει το αίτημα ένταξης του χρήστη της παραμέτρου προς την ομάδα σου!')
     @discord.option(name='user',
                     description='Ο αιτούμενος χρήστης',
                     input_type=discord.Member)
     async def dismiss(self, ctx: Context, user: discord.Member) -> None:
-        pass
+        applicant_id = user.id
+        author_id = ctx.author.id
+        team = await dh.get_team_by_member(author_id)
+        members = await dh.get_team_total_members(team)
+
+        if await dh.is_user_on_any_team(author_id):
+            if author_id == members[0]:
+                if await dh.request_exists(team, applicant_id):
+                    await dh.dismiss_team_request(team, applicant_id)
+                    await ctx.interaction.respond(f'Το αίτημα του χρήστη {user.mention} απορρίφθηκε επιτυχώς.')
+                else: await ctx.interaction.respond('Δεν υπάρχει αίτημα ένταξης προς την ομάδα σου από αυτόν τον χρήστη.')
+            else: await ctx.interaction.respond('Μόνο ο αρχηγός της ομάδας σου μπορεί να απορρίψει αιτήματα.')
+        else: await ctx.interaction.respond('Δεν ανήκεις σε κάποια ομάδα!')
 
     @commands.slash_command(description='Η εντολή διώχνει τον χρήστη της παραμέτρου από την ομάδα σου!')
     @discord.option(name='user',
                     description='Ο χρήστος-μέλος της ομάδας',
                     input_type=discord.Member)
     async def kick(self, ctx: Context, user: discord.Member) -> None:
-        pass
+        member_id = user.id
+        author_id = ctx.author.id
+        team = await dh.get_team_by_member(author_id)
+        members = await dh.get_team_total_members(team)
+        leave_cmd = discord.utils.get(self.bot.application_commands, name='leave')
+
+        if await dh.is_user_on_any_team(author_id):
+            if author_id == members[0]:
+                if member_id != author_id:
+                    if member_id in members:
+                        await dh.remove_member_from_team(team, member_id)
+                        await user.remove_roles(discord.utils.get(ctx.guild.roles, name=team), reason=f'Kicking user from team {team}')
+                        await ctx.interaction.respond(f'Ο χρήστης {user.mention} εκδιώχθηκε επιτυχώς από την ομάδα!')
+                    else: await ctx.interaction.respond('Αυτός ο χρήστης δεν είναι μέλος της ομάδας σου!')
+                else: await ctx.interaction.respond('Δεν μπορείς να διώξεις τον εαυτό σου! Αν επιθυμείς να φύγεις από την ομάδα,'
+                                                    f' χρησιμοποίησε την εντολή </leave:{leave_cmd.id}>.')
+            else: await ctx.interaction.respond('Μόνο ο αρχηγός της ομάδας σου μπορεί να διώξει άτομα.')
+        else: await ctx.interaction.respond('Δεν ανήκεις σε κάποια ομάδα!')
 
     @commands.slash_command(description='Η εντολή σε αφαιρεί από την ομάδα σου!')
     async def leave(self, ctx: Context) -> None:
@@ -153,7 +204,13 @@ class TeamsCog(discord.Cog):
         team = await dh.get_team_by_member(user_id)
 
         if await dh.is_user_on_any_team(user_id):
-            if len(await dh.get_team_total_members(team)) > 1: pass
+            members = await dh.get_team_total_members(team)
+            if len(members) > 1:
+                if members[0] == user_id: #the user is the team's leader...
+                    await dh.transfer_team_leadership(team) #...to the next user BY ORDER in the members list
+                if await dh.remove_member_from_team(team, user_id):
+                    await ctx.interaction.respond(f'Επιτυχής αποχώρηση από την ομάδα `{team}`.')
+                else: await ctx.interaction.respond('Βρέθηκε σφάλμα, παρακαλώ επικοινώνησε άμεσα με ένα μέλος προσωπικού.') #just in case
             else: # delete the team
                 final_team = team.replace(' ', '-').lower()
                 await discord.utils.get(ctx.guild.text_channels, name=f'team-{final_team}').delete(reason=f'Deleting team {team}')
@@ -162,7 +219,7 @@ class TeamsCog(discord.Cog):
 
                 await dh.delete_team(team)
 
-                await ctx.interaction.respond(f'Μόλις έφυγες από την ομάδα `{team}`. Επειδή ήσουν το μόνο μέλος της η ομάδα διαγράφτηκε.')
+                await ctx.interaction.respond(f'Επιτυχής αποχώρηση από την ομάδα `{team}`. Επειδή ήσουν το μόνο μέλος της, η ομάδα διαγράφτηκε.')
         else: await ctx.interaction.respond('Δεν ανήκεις σε κάποια ομάδα!')
 
     @commands.slash_command(description='Η εντολή εκτυπώνει τα μέλη μιας ομάδας!')
@@ -177,10 +234,10 @@ class TeamsCog(discord.Cog):
         if await dh.is_user_on_any_team(ctx.author.id):
             if await dh.team_exists(team):
                 member_list = await dh.get_team_total_members(team)
-                corrent_member_form = 'μέλη, τα οποία παρουσιάζονται' if len(member_list) > 1 else 'μέλος, το οποίο παρουσιάζεται'
+                correct_member_form = 'μέλη, τα οποία παρουσιάζονται' if len(member_list) > 1 else 'μέλος, το οποίο παρουσιάζεται'
                 embed = discord.Embed(colour=embed_colour,
                                       title=f'Team {team}',
-                                      description=f'Η ομάδα **{team}** αποτελείται από **{len(member_list)}** {corrent_member_form} παρακάτω:')
+                                      description=f'Η ομάδα **{team}** αποτελείται από **{len(member_list)}** {correct_member_form} παρακάτω:')
 
                 leader_string = ''
                 member_mentions_list = list()
@@ -192,15 +249,16 @@ class TeamsCog(discord.Cog):
                     else: member_mentions_list.append(user.mention)
 
                 embed.add_field(
-                    name='Αρχηγός',
-                    value=leader_string,
+                    name='`Αρχηγός`',
+                    value=f'{leader_string}',
                     inline=False
                 )
 
                 if len(member_mentions_list) > 0:
+                    final_string = ', '.join(member_mentions_list)
                     embed.add_field(
-                        name='Μέλη',
-                        value=', '.join(member_mentions_list),
+                        name='`Μέλη`',
+                        value=f'{final_string}',
                         inline=False
                     )
 
@@ -212,7 +270,7 @@ class TeamsCog(discord.Cog):
     @commands.slash_command(description='Η εντολή εκτυπώνει όλες τις υπάρχουσες ομάδες!')
     async def list(self, ctx: Context) -> None:
         teams = await dh.get_all_teams()
-        correct_description = f'Υπάρχουν {len(teams.keys())} ομάδες' if len(teams.keys()) != 1 else 'Υπάρχει 1 ομάδα'
+        correct_description = f'Υπάρχουν **{len(teams.keys())}** ομάδες' if len(teams.keys()) != 1 else 'Υπάρχει **1** ομάδα'
         embed = discord.Embed(
             colour=embed_colour,
             title='Υπάρχουσες ομάδες',
@@ -224,7 +282,7 @@ class TeamsCog(discord.Cog):
 
             embed.add_field(
                 name=f'Team `{team}`',
-                value=f'> Αρχηγός: {leader.mention} | Πλήθος μελών: {len(members)}',
+                value=f'> **Αρχηγός**: {leader.mention}\n> **Πλήθος μελών**: {len(members)}',
                 inline=False
             )
 

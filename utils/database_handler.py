@@ -39,8 +39,18 @@ class DatabaseHandler:
                     await db.commit()
 
     @staticmethod
-    async def transfer_team_leadership(team: str, to_user: int) -> None:
-        pass
+    async def transfer_team_leadership(team: str) -> None:
+        members = await DatabaseHandler.get_team_total_members(team)
+        old_leader = members.pop(0)
+
+        leader = members[0] # new leader
+        members.pop(0) #remove him to form the members string
+        members.append(old_leader)
+        member_string = ','.join(members)
+
+        async with aiosqlite.connect(database_path) as db:
+            await db.execute(f'update Teams set Leader={leader}, Members="{member_string}" where Name="{team}";')
+            await db.commit()
 
     @staticmethod
     async def delete_team(team: str) -> None:
@@ -131,23 +141,7 @@ class DatabaseHandler:
         return result
 
     @staticmethod
-    async def count_team_members(team: str) -> int:
-        teamMembersQuery = f'select Members from Teams where Name="{team}";'
-
-        async with aiosqlite.connect(database_path) as db:
-            async with db.execute(teamMembersQuery) as cursor:
-                row = await cursor.fetchone()
-
-                if row is None: return 0
-                elif row[0] is None: return 1 #no members, only the leader
-                else:
-                    member_list = row[0].split(",")
-                    return len(member_list) + 1 #members + the leader
-
-        return 0 #for now...
-
-    @staticmethod
-    async def add_user_to_team(team: str, user_id: int) -> int:
+    async def add_user_to_team(team: str, user_id: int) -> None:
         membersStringQuery = f'select Members from Teams where Name="{team}";'
 
         async with aiosqlite.connect(database_path) as db:
@@ -157,20 +151,38 @@ class DatabaseHandler:
 
             if members is not None:
                 member_list = members.split(",")
-                if len(member_list) >= 4: return 0 # Team is full
-                else:
-                    member_list.append(str(user_id))
+                member_list.append(str(user_id))
 
-                    final_members_string = ','.join(member_list)
-                    await db.execute(f'update Teams set Members="{final_members_string}" where Name="{team}"')
-                    await db.commit()
+                final_members_string = ','.join(member_list)
+                await db.execute(f'update Teams set Members="{final_members_string}" where Name="{team}";')
+                await db.commit()
             else:
-                await db.execute(f'update Teams set Members="{str(user_id)}" where Name="{team}"')
+                await db.execute(f'update Teams set Members="{str(user_id)}" where Name="{team}";')
                 await db.commit()
 
             await cursor.close()
 
-        return 1 # No errors
+    @staticmethod
+    async def remove_member_from_team(team: str, user_id: int) -> bool:
+        membersStringQuery = f'select Members from Teams where Name="{team}";'
+        result = True
+
+        async with aiosqlite.connect(database_path) as db:
+            async with db.execute(membersStringQuery) as cursor:
+                row = await cursor.fetchone()
+                members_string: str = row[0]
+
+                if members_string is not None:
+                    members_list = members_string.split(',')
+                    if str(user_id) in members_list:
+                        members_list.remove(str(user_id))
+                        final_members_string = ','.join(members_list)
+                        await db.execute(f'update Teams set Members="{final_members_string}" where Name="{team}";')
+                        await db.commit()
+                    else: result = False
+                else: result = False
+
+        return result
 
     @staticmethod
     async def create_team_request(team: str, user_id: int) -> int:
@@ -189,13 +201,21 @@ class DatabaseHandler:
                     team_list = []
                     for row in rows: team_list.append(row[0])
                     if not team in team_list:
-                        if await DatabaseHandler.count_team_members(team) >= 4: return -1 #team is full
+                        if len(await DatabaseHandler.get_team_total_members(team)) >= 4: return -1 #team is full
                         else:
                             await db.execute(requestCreationQuery)
                             await db.commit()
                     else: return 0 #request already exists
 
         return 1 #all ended well...
+
+    @staticmethod
+    async def dismiss_team_request(team: str, user_id: int) -> None:
+        deletionQuery = f'delete from Requests where UserId={user_id} and Team="{team}";'
+
+        async with aiosqlite.connect(database_path) as db:
+            await db.execute(deletionQuery)
+            await db.commit()
 
     @staticmethod
     async def get_team_total_requests(team: str) -> list:
@@ -215,4 +235,6 @@ class DatabaseHandler:
 
     @staticmethod
     async def request_exists(team: str, user_id: int) -> bool:
-        pass
+        requested_users = await DatabaseHandler.get_team_total_requests(team)
+        if user_id in requested_users: return True
+        return False
