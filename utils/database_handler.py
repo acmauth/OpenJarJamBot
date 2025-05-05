@@ -46,7 +46,10 @@ class DatabaseHandler:
         leader = members[0] # new leader
         members.pop(0) #remove him to form the members string
         members.append(old_leader)
-        member_string = ','.join(members)
+        fixed_list = list()
+        for member in members:
+            fixed_list.append(str(member))
+        member_string = ','.join(fixed_list)
 
         async with aiosqlite.connect(database_path) as db:
             await db.execute(f'update Teams set Leader={leader}, Members="{member_string}" where Name="{team}";')
@@ -88,11 +91,12 @@ class DatabaseHandler:
                 row = await cursor.fetchone()
 
                 members.append(row[0]) # the leader is always there...
-
-                if row[1] is not None:
+                if row[1] is not None and row[1] != '':
                     member_list = row[1].split(",")
+
                     fixed_list = list()
-                    for member in member_list: fixed_list.append(int(member))
+                    for member in member_list:
+                        if member != '': fixed_list.append(int(member))
                     members.extend(fixed_list)
 
         return members
@@ -129,16 +133,15 @@ class DatabaseHandler:
         return result
 
     @staticmethod
-    async def team_exists(team: str) -> bool:
-        checkQuery = f'select 1 from Teams where Name="{team}";'
-        result: bool = True
-
-        async with aiosqlite.connect(database_path) as db:
-            async with db.execute(checkQuery) as cursor:
-                row = await cursor.fetchone()
-                if row is None: result = False
-
-        return result
+    async def team_exists(team_name: str) -> list:
+        all_teams = await DatabaseHandler.get_all_teams()
+        teams = list(all_teams.keys())
+        fixed_teams = list()
+        for team_c in teams:
+            fixed_teams.append(team_c.lower())
+        await aprint(fixed_teams)
+        if team_name.lower() in fixed_teams: return [True, teams[fixed_teams.index(team_name.lower())]]
+        else: return [False, None]
 
     @staticmethod
     async def add_user_to_team(team: str, user_id: int) -> None:
@@ -177,7 +180,10 @@ class DatabaseHandler:
                     if str(user_id) in members_list:
                         members_list.remove(str(user_id))
                         final_members_string = ','.join(members_list)
-                        await db.execute(f'update Teams set Members="{final_members_string}" where Name="{team}";')
+                        if len(final_members_string) != 0:
+                            await db.execute(f'update Teams set Members="{final_members_string}" where Name="{team}";')
+                        else:
+                            await db.execute(f'update Teams set Members=NULL where Name="{team}";')
                         await db.commit()
                     else: result = False
                 else: result = False
@@ -186,32 +192,38 @@ class DatabaseHandler:
 
     @staticmethod
     async def create_team_request(team: str, user_id: int) -> int:
-        requestExistsQuery = f'select Teams from Requests where UserId={user_id};'
+        request_exists = await DatabaseHandler.request_exists(team, user_id)
         requestCreationQuery = f'insert into Requests values ({user_id}, "{team}");'
 
-
         async with aiosqlite.connect(database_path) as db:
-            async with db.execute(requestExistsQuery) as cursor:
-                rows = await cursor.fetchone()
+            if len(await DatabaseHandler.get_team_total_members(team)) >= 4: result = -1  # team is full
+            elif not request_exists:
+                await db.execute(requestCreationQuery)
+                await db.commit()
+                result = 1
+            else: result = 0
 
-                if rows is None:
-                    await db.execute(requestCreationQuery)
-                    await db.commit()
-                else:
-                    team_list = []
-                    for row in rows: team_list.append(row[0])
-                    if not team in team_list:
-                        if len(await DatabaseHandler.get_team_total_members(team)) >= 4: return -1 #team is full
-                        else:
-                            await db.execute(requestCreationQuery)
-                            await db.commit()
-                    else: return 0 #request already exists
-
-        return 1 #all ended well...
+        return result #all ended well...
 
     @staticmethod
     async def dismiss_team_request(team: str, user_id: int) -> None:
         deletionQuery = f'delete from Requests where UserId={user_id} and Team="{team}";'
+
+        async with aiosqlite.connect(database_path) as db:
+            await db.execute(deletionQuery)
+            await db.commit()
+
+    @staticmethod
+    async def dismiss_all_team_requests(team: str) -> None:
+        deletionQuery = f'delete from Requests where Team="{team}";'
+
+        async with aiosqlite.connect(database_path) as db:
+            await db.execute(deletionQuery)
+            await db.commit()
+
+    @staticmethod
+    async def dismiss_all_user_requests(user_id: int) -> None:
+        deletionQuery = f'delete from Requests where UserId="{user_id}";'
 
         async with aiosqlite.connect(database_path) as db:
             await db.execute(deletionQuery)
@@ -225,7 +237,6 @@ class DatabaseHandler:
         async with aiosqlite.connect(database_path) as db:
             async with db.execute(infoGatheringQuery) as cursor:
                 rows = await cursor.fetchall()
-                await aprint(rows)
 
                 for row in rows:
                     if row is None: break

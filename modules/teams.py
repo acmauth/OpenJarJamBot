@@ -5,7 +5,6 @@ from discord.ext import commands
 from utils.database_handler import DatabaseHandler as dh
 from utils.utilities import aprint, embed_colour
 
-
 class TeamsCog(discord.Cog):
     def __init__(self, bot):
         self.bot: commands.Bot = bot
@@ -17,19 +16,27 @@ class TeamsCog(discord.Cog):
     async def join(self, ctx: Context, team_name: str) -> None:
         await ctx.defer()
 
+        info = await dh.team_exists(team_name)
+        exists = info[0]
+        team = info[1]
         user_id = ctx.author.id
+
         if not await dh.is_user_on_any_team(user_id):
-            if await dh.team_exists(team_name):
-                result = await dh.create_team_request(team_name, user_id)
+            if exists:
+                result = await dh.create_team_request(team, user_id)
                 if result == -1: await ctx.interaction.respond('Η ομάδα που ανέφερες έχει συμπληρώσει τον μέγιστο αριθμό επιτρεπτών μελών!',
                                                    ephemeral=True)
-                elif result == 0: await ctx.interaction.respond(f'Έχεις ήδη αιτηθεί την ένταξή σου στην ομάδα {team_name}',
+                elif result == 0: await ctx.interaction.respond(f'Έχεις ήδη αιτηθεί την ένταξή σου στην ομάδα {team}',
                                                     ephemeral=True)
-                else: await ctx.interaction.respond(f'Η αίτηση ένταξης προς την ομάδα {team_name} στάλθηκε!',
+                else:
+                    await ctx.interaction.respond(f'Η αίτηση ένταξης προς την ομάδα {team} στάλθηκε!',
                                         ephemeral=True)
+                    final_team_string = f'team-{team_name}'.lower().replace(' ', '-')
+                    await discord.utils.get(ctx.guild.text_channels, name=final_team_string).send(f'Ο χρήστης {ctx.author.mention} μόλις έστειλε αίτημα ένταξης προς την ομάδα σας!')
             else:
                 try:
                     await dh.create_team(team_name, user_id) # create the team
+                    await dh.dismiss_all_user_requests(user_id) # delete all sent requests
 
                     # create and assign the role
                     role = await ctx.guild.create_role(reason=f'Role creation for team {team_name}',
@@ -43,7 +50,7 @@ class TeamsCog(discord.Cog):
                     # create the channel
                     txt_channel = await ctx.guild.create_text_channel(reason=f'Channel creation for team {team_name}',
                                                                       name=f'team-{team_name}',
-                                                                      category=discord.utils.get(ctx.guild.categories, name='Teams Chats'),
+                                                                      category=discord.utils.get(ctx.guild.categories, name='Teams\' Chats'),
                                                                       overwrites={
                                                                           discord.utils.get(ctx.guild.roles, name=team_name) : discord.PermissionOverwrite(
                                                                               view_channel = True
@@ -61,7 +68,7 @@ class TeamsCog(discord.Cog):
 
                     vc_channel = await ctx.guild.create_voice_channel(reason=f'Channel creation for team {team_name}',
                                                                       name=f'Team {team_name}',
-                                                                      category=discord.utils.get(ctx.guild.categories, name='Teams Voice Chats'),
+                                                                      category=discord.utils.get(ctx.guild.categories, name='Teams\' Voice Chats'),
                                                                       user_limit=4,
                                                                       overwrites={
                                                                           discord.utils.get(ctx.guild.roles,
@@ -144,7 +151,7 @@ class TeamsCog(discord.Cog):
                             await dh.add_user_to_team(team, applicant_id)
                             await user.add_roles(discord.utils.get(ctx.guild.roles, name=team), reason=f'Assigning role to member of team {team}')
 
-                            await dh.dismiss_team_request(team, applicant_id)
+                            await dh.dismiss_all_user_requests(applicant_id)
 
                             await ctx.interaction.respond(f'Αποδέχτηκες το αίτημα του αιτούμενου χρήστη. Καλωσόρισες {user.mention}!')
                         else: await ctx.interaction.respond('Η ομάδα σου είναι γεμάτη. (4/4 μέλη συνολικά)')
@@ -206,9 +213,13 @@ class TeamsCog(discord.Cog):
         if await dh.is_user_on_any_team(user_id):
             members = await dh.get_team_total_members(team)
             if len(members) > 1:
-                if members[0] == user_id: #the user is the team's leader...
+                if members[0] == user_id: #the user is the team's leader
                     await dh.transfer_team_leadership(team) #...to the next user BY ORDER in the members list
                 if await dh.remove_member_from_team(team, user_id):
+                    await ctx.author.remove_roles(
+                        discord.utils.get(ctx.guild.roles, name=team),
+                        reason=f'Removing member from team {team}'
+                    )
                     await ctx.interaction.respond(f'Επιτυχής αποχώρηση από την ομάδα `{team}`.')
                 else: await ctx.interaction.respond('Βρέθηκε σφάλμα, παρακαλώ επικοινώνησε άμεσα με ένα μέλος προσωπικού.') #just in case
             else: # delete the team
@@ -218,6 +229,7 @@ class TeamsCog(discord.Cog):
                 await discord.utils.get(ctx.guild.roles, name=team).delete(reason=f'Deleting team {team}')
 
                 await dh.delete_team(team)
+                await dh.dismiss_all_team_requests(team)
 
                 await ctx.interaction.respond(f'Επιτυχής αποχώρηση από την ομάδα `{team}`. Επειδή ήσουν το μόνο μέλος της, η ομάδα διαγράφτηκε.')
         else: await ctx.interaction.respond('Δεν ανήκεις σε κάποια ομάδα!')
@@ -230,9 +242,11 @@ class TeamsCog(discord.Cog):
                     default='')
     async def members(self, ctx: Context, team_name: str = '') -> None:
         team: str = await dh.get_team_by_member(ctx.author.id) if len(team_name) == 0 else team_name
-        await aprint(team)
+        info = await dh.team_exists(team)
+        team = info[1]
+        exists = info[0]
         if await dh.is_user_on_any_team(ctx.author.id):
-            if await dh.team_exists(team):
+            if exists:
                 member_list = await dh.get_team_total_members(team)
                 correct_member_form = 'μέλη, τα οποία παρουσιάζονται' if len(member_list) > 1 else 'μέλος, το οποίο παρουσιάζεται'
                 embed = discord.Embed(colour=embed_colour,
