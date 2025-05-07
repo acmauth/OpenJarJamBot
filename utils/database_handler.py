@@ -139,7 +139,6 @@ class DatabaseHandler:
         fixed_teams = list()
         for team_c in teams:
             fixed_teams.append(team_c.lower())
-        await aprint(fixed_teams)
         if team_name.lower() in fixed_teams: return [True, teams[fixed_teams.index(team_name.lower())]]
         else: return [False, None]
 

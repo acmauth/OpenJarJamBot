@@ -3,7 +3,7 @@ from discord import ApplicationContext as Context
 from discord.ext import commands
 
 from utils.database_handler import DatabaseHandler as dh
-from utils.utilities import aprint, embed_colour
+from utils.utilities import embed_colour
 
 class TeamsCog(discord.Cog):
     def __init__(self, bot):
@@ -53,7 +53,7 @@ class TeamsCog(discord.Cog):
                                                                       category=discord.utils.get(ctx.guild.categories, name='Teams\' Chats'),
                                                                       overwrites={
                                                                           discord.utils.get(ctx.guild.roles, name=team_name) : discord.PermissionOverwrite(
-                                                                              view_channel = True
+                                                                              view_channel = True, use_slash_commands=True
                                                                           ),
                                                                           discord.utils.get(ctx.guild.roles, name='Moderator') : discord.PermissionOverwrite(
                                                                               view_channel = True
@@ -231,7 +231,10 @@ class TeamsCog(discord.Cog):
                 await dh.delete_team(team)
                 await dh.dismiss_all_team_requests(team)
 
-                await ctx.interaction.respond(f'Επιτυχής αποχώρηση από την ομάδα `{team}`. Επειδή ήσουν το μόνο μέλος της, η ομάδα διαγράφτηκε.')
+                try:
+                    await ctx.interaction.respond(f'Επιτυχής αποχώρηση από την ομάδα `{team}`. Επειδή ήσουν το μόνο μέλος της, η ομάδα διαγράφτηκε.')
+                except discord.NotFound:
+                    pass #the channel was already deleted
         else: await ctx.interaction.respond('Δεν ανήκεις σε κάποια ομάδα!')
 
     @commands.slash_command(description='Η εντολή εκτυπώνει τα μέλη μιας ομάδας!')
